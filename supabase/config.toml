@@ -410,3 +410,8 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 [functions.webhook]
 # Shopify no manda JWT de Supabase: la autenticidad la da el HMAC (guía §6.2)
 verify_jwt = false
+
+[functions.worker-sync]
+# Auth manual con service key exacto en tiempo constante (un JWT anon valido
+# pasaria verify_jwt y nadie mas que el sistema debe drenar la cola)
+verify_jwt = false
