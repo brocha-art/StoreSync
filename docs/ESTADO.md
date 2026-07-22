@@ -34,6 +34,12 @@ service_role solo server-side (deny-all verificado); HMAC constante sobre body c
 6. Worker: `processed_at` evita re-aplicar en redeliveries; handlers upsert + set absoluto ⇒ reproceso inocuo.
 7. Handlers del worker viven junto a la Edge Function (bundling); mappers Node en `src/` (shapes distintos: REST vs GraphQL).
 8. Puertos locales 55321+ (54xxx ocupados por otro proyecto local).
+9. **Auth del worker por token dedicado** (`WORKER_SYNC_TOKEN`), no la service key:
+   en el despliegue real, la `service_role` legacy que devuelve la API ≠ la
+   `SUPABASE_SERVICE_ROLE_KEY` que el runtime inyecta (proyectos con keys
+   nuevas `sb_secret_…`) y el cron recibía 401 silencioso del worker. El token
+   propio vive en `supabase secrets set` + Vault (`worker_sync_token`) y
+   desacopla la invocación interna del formato de keys de Supabase.
 
 ## NO construido aún (por diseño — BUILD ORDER)
 
@@ -44,39 +50,37 @@ service_role solo server-side (deny-all verificado); HMAC constante sobre body c
 - Canal real de alertas (hoy: `sync_events` + stderr) — PENDIENTES #5.
 - Validación `available` vs `on_hand/committed` — PENDIENTES #1 (semana 1 con tienda dev).
 
+## Despliegue cloud — EJECUTADO Y VALIDADO (2026-07-22)
+
+Proyecto `fgrpclxpjciosvjzbefo` (org `ybjvneingmxwkrbvomqo`), CLI enlazada.
+
+- Migraciones 000–006 aplicadas vía `db push` sobre base **verificada vacía**.
+- Batería SQL remota: 4 extensiones, 13 tablas (13 con RLS), 3 colas, 8 funciones, cron activo.
+- Edge Functions `webhook` y `worker-sync` desplegadas: GET→405, POST sin firma→401, worker sin token→401.
+- Cron `drain-sync-jobs` (job 1, cada minuto) con `WORKER_SYNC_TOKEN` leído del Vault.
+- **E2E real validado**: webhook firmado → 200, replay → dedupe, tick del cron →
+  worker drenó → producto+variante creados, `processed_at` marcado, `sync_events`
+  success, cola en 0. Datos de prueba limpiados después.
+- Incidente encontrado y resuelto: 401 cron→worker por mismatch de formato de
+  keys (decisión de implementación #9). El secreto Vault con la service key
+  legacy fue eliminado; solo queda `worker_sync_token`.
+- `.env.cloud` local (gitignored) con la URL + secret key del proyecto para
+  correr los scripts contra el cloud: `cp .env.cloud .env` (volver a local:
+  regenerar desde `supabase status -o env`).
+
 ## SIGUIENTE PASO EXACTO (próxima sesión)
 
-El conector Supabase de la sesión anterior NO ve el proyecto
-`fgrpclxpjciosvjzbefo` (ve otra organización). Por eso el despliegue quedó listo
-pero no ejecutado. En orden:
-
-1. **Acceso al proyecto cloud** (una vez, ~2 min, en tu terminal):
+1. **Alta de la tienda dev real** (valida los 6 requisitos §2.2 y bloquea si algo falla):
    ```bash
-   supabase login
-   supabase link --project-ref fgrpclxpjciosvjzbefo
-   ```
-   (o re-autorizar el conector de claude.ai hacia la organización dueña de ese proyecto).
-2. **Migraciones**: `supabase db push` (aplica 000–006; todas idempotentes).
-3. **Funciones**: `supabase functions deploy webhook && supabase functions deploy worker-sync`
-   (config.toml ya trae `verify_jwt=false` para ambas; el worker exige service key exacto).
-4. **Cron del worker** (SQL editor del proyecto, service_role):
-   ```sql
-   select vault.create_secret('<service_role_key>', 'service_role_key', 'Para pg_cron -> Edge Functions');
-   select schedule_worker_cron('https://fgrpclxpjciosvjzbefo.supabase.co/functions/v1/worker-sync');
-   ```
-   (el key va al Vault; el comando del cron lo lee de ahí en cada ejecución).
-5. **Alta de la tienda dev** (valida los 6 requisitos §2.2 y bloquea si algo falla):
-   ```bash
+   cp .env.cloud .env
    SHOPIFY_ADMIN_TOKEN=shpat_... SHOPIFY_WEBHOOK_SECRET=... npm run onboard -- \
      --shop-domain <tienda>.myshopify.com --location-id <id> --artist-name "<Artista>"
    ```
-   con `.env` apuntando al proyecto cloud (`SUPABASE_URL=https://fgrpclxpjciosvjzbefo.supabase.co`,
-   `SUPABASE_SERVICE_ROLE_KEY=<key>`).
-6. **Import inicial**: `npm run import-catalog -- --shop-id <uuid>` (verifica completitud).
-7. **Webhooks en vivo** (solo tras import — BUILD ORDER):
+2. **Import inicial**: `npm run import-catalog -- --shop-id <uuid>` (verifica completitud).
+3. **Webhooks en vivo** (solo tras import — BUILD ORDER):
    `npm run register-webhooks -- --shop-id <uuid> --callback-url https://fgrpclxpjciosvjzbefo.supabase.co/functions/v1/webhook`
-8. **Checklist §13** con la tienda real: #1–#4 y #7 (inbound); documentar PENDIENTES #1 y #3.
-9. Con la tienda verde en inbound → **outbound §7.2/§8** (siguiente bloque del BUILD ORDER).
+4. **Checklist §13** con la tienda real: #1–#4 y #7 (inbound); documentar PENDIENTES #1 y #3.
+5. Con la tienda verde en inbound → **outbound §7.2/§8** (siguiente bloque del BUILD ORDER).
 
 ## Cómo correr todo en local
 

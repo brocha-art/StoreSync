@@ -2,9 +2,13 @@
 // receptor de webhooks. Lo invoca pg_cron cada minuto (migración 006) o un
 // operador vía curl con el service key.
 //
-// Auth: verify_jwt=false + verificación MANUAL del service key exacto en
+// Auth: verify_jwt=false + token DEDICADO (WORKER_SYNC_TOKEN) comparado en
 // tiempo constante — con verify_jwt un JWT anon válido también pasaría, y
-// nadie más que el sistema debe poder drenar la cola.
+// nadie más que el sistema debe poder drenar la cola. Se usa un token propio
+// (no la service key) porque el formato de keys de Supabase varía por proyecto
+// (JWT legacy vs sb_secret_…) y acoplarse a él produce 401 silenciosos: el
+// token nuestro va en `supabase secrets set WORKER_SYNC_TOKEN=…` y en el
+// Vault ('worker_sync_token') para que el cron lo lea (migración 006).
 //
 // Semántica at-least-once => effectively-once:
 // - Si el worker muere tras procesar y antes de archivar, el mensaje reaparece
@@ -24,6 +28,9 @@ const supabase = createClient(Deno.env.get("SUPABASE_URL")!, SERVICE_KEY, {
   auth: { persistSession: false },
 });
 
+// Token de invocación propio — fail-closed: sin token configurado, nadie entra.
+const WORKER_TOKEN = Deno.env.get("WORKER_SYNC_TOKEN") ?? "";
+
 const VT_SECONDS = 60; // invisible mientras se procesa (Decisión 4)
 const BATCH = 10;
 const MAX_READS = 5; // read_ct > 5 => dead letter (Decisión 4)
@@ -35,9 +42,13 @@ interface SyncJobMessage {
 }
 
 function bearerOk(header: string | null): boolean {
+  if (WORKER_TOKEN.length === 0) {
+    console.error("WORKER_SYNC_TOKEN no configurado: rechazando toda invocación (fail-closed)");
+    return false;
+  }
   const token = header?.replace(/^Bearer\s+/i, "") ?? "";
   const a = Buffer.from(token);
-  const b = Buffer.from(SERVICE_KEY);
+  const b = Buffer.from(WORKER_TOKEN);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 

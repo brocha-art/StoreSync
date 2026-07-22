@@ -4,18 +4,22 @@
 -- entorno. Se expone una función de ops (service_role only) que agenda o
 -- reagenda de forma idempotente (cron.schedule con el mismo jobname reemplaza).
 --
--- El service key JAMÁS queda en texto plano en el comando agendado: el
--- comando lee el secreto del Vault EN CADA ejecución.
+-- El token JAMÁS queda en texto plano en el comando agendado: el comando lo
+-- lee del Vault EN CADA ejecución. Se usa un token DEDICADO del worker
+-- (WORKER_SYNC_TOKEN), no la service key: el formato de las keys de Supabase
+-- varía por proyecto (JWT legacy vs sb_secret_…) y acoplarse a él produce
+-- 401 silenciosos entre el cron y la función.
 --
--- Uso por entorno (una vez, desde SQL editor con service_role):
---   select vault.create_secret('<service_role_key>', 'service_role_key',
---                              'Para que pg_cron invoque las Edge Functions');
---   select schedule_worker_cron('https://<proyecto>.supabase.co/functions/v1/worker-sync');
+-- Uso por entorno (una vez):
+--   1. supabase secrets set WORKER_SYNC_TOKEN=<token aleatorio>
+--   2. select vault.create_secret('<mismo token>', 'worker_sync_token',
+--                                 'Invocación del worker via pg_cron');
+--   3. select schedule_worker_cron('https://<proyecto>.supabase.co/functions/v1/worker-sync');
 -- Para detener: select cron.unschedule('drain-sync-jobs');
 
 create or replace function schedule_worker_cron(
   p_function_url text,
-  p_secret_name  text default 'service_role_key',
+  p_secret_name  text default 'worker_sync_token',
   p_schedule     text default '* * * * *'
 ) returns bigint
 language plpgsql

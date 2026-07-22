@@ -17,8 +17,9 @@ psql_q() { docker exec supabase_db_StoreSync psql -U postgres -d postgres -tA -c
 fail() { echo "✖ $1"; exit 1; }
 ok()   { echo "✔ $1"; }
 
-eval "$(supabase status -o env 2>/dev/null | grep '^SERVICE_ROLE_KEY=')"
-[ -n "${SERVICE_ROLE_KEY:-}" ] || fail "no pude obtener SERVICE_ROLE_KEY del stack local"
+# Token dedicado del worker (mismo que carga functions serve desde supabase/functions/.env)
+WORKER_SYNC_TOKEN=$(grep '^WORKER_SYNC_TOKEN=' supabase/functions/.env | cut -d= -f2-)
+[ -n "${WORKER_SYNC_TOKEN:-}" ] || fail "no hay WORKER_SYNC_TOKEN en supabase/functions/.env"
 
 # Seed idempotente: variante conocida para el webhook de inventario
 docker exec -i supabase_db_StoreSync psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q <<'SQL'
@@ -65,7 +66,7 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/worker-sync")
 ok "worker sin service key: 401"
 
 # 4) Worker con service key → drena todo
-resp=$(curl -s -X POST "$BASE/worker-sync" -H "Authorization: Bearer $SERVICE_ROLE_KEY")
+resp=$(curl -s -X POST "$BASE/worker-sync" -H "Authorization: Bearer $WORKER_SYNC_TOKEN")
 echo "  worker: $resp"
 
 # 5) Verificaciones en base
