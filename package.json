@@ -1,0 +1,23 @@
+{
+  "name": "storesync",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "onboard": "tsx scripts/onboard-shop.ts",
+    "import-catalog": "tsx scripts/import-catalog.ts",
+    "register-webhooks": "tsx scripts/register-webhooks.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}
