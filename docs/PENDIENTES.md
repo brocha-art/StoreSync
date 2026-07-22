@@ -33,6 +33,14 @@ variantes adicionales por producto cuando `hasNextPage = true`, pero Shopify aho
 permite hasta 2000 variantes/producto: si aparece un catálogo así, medir costo de
 rate limit y considerar pasar ese producto a Bulk Operations.
 
+## 5b. `Product.images` vs `media` en el import
+
+El import usa la conexión `images(first: 50)` de Product (además de
+`featuredImage`, guía §5.2). Shopify empuja hacia `media` como camino nuevo:
+verificar en el primer import real contra `2026-07` que `images` sigue
+devolviendo todo (si un producto usa solo media/video, evaluar migrar la query
+a `media(first:){ ... on MediaImage }`).
+
 ## 5. Alerta real para dead-letter y `needs_reauth` (§10 guía)
 
 Hoy "alertar" = fila en `sync_events` (status `dead_letter`) + log. Falta decidir el
