@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "onboard": "tsx scripts/onboard-shop.ts",
     "import-catalog": "tsx scripts/import-catalog.ts",
-    "register-webhooks": "tsx scripts/register-webhooks.ts"
+    "register-webhooks": "tsx scripts/register-webhooks.ts",
+    "panel": "tsx scripts/panel.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2"
