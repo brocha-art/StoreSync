@@ -82,6 +82,16 @@ Proyecto `fgrpclxpjciosvjzbefo` (org `ybjvneingmxwkrbvomqo`), CLI enlazada.
 4. **Checklist §13** con la tienda real: #1–#4 y #7 (inbound); documentar PENDIENTES #1 y #3.
 5. Con la tienda verde en inbound → **outbound §7.2/§8** (siguiente bloque del BUILD ORDER).
 
+## Panel visual (ops)
+
+`npm run panel -- --env .env.local` (o `.env.cloud`) → http://127.0.0.1:8787
+Muestra tiendas, productos espejados con stock por variante, webhooks sin
+procesar y últimos sync_events. Server-side rendered: service_role solo en el
+proceso local, nunca en el navegador. La superficie para consumidores externos
+sigue siendo el gateway (Decisión 6), pendiente por BUILD ORDER.
+Env files (gitignored): `.env` activo · `.env.local` stack local · `.env.cloud`
+producción (usa la key legacy JWT: el REST del proyecto rechaza las `sb_secret_…`).
+
 ## Cómo correr todo en local
 
 ```bash
